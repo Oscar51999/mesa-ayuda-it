@@ -233,6 +233,7 @@
       <option value="Crítica">Crítica</option>
     </select>
     <span class="spacer"></span>
+    <button class="secondary" id="report-btn">Generar reporte (PDF)</button>
     <button class="primary" id="new-btn">+ Nuevo ticket</button>
   </div>
 
@@ -308,6 +309,8 @@
 </div>
 </div><!-- /app-content -->
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf-autotable.min.js"></script>
 <script>
 (function () {
   var listEl = document.getElementById('list');
@@ -321,6 +324,7 @@
   var searchInput = document.getElementById('search');
   var filterEstado = document.getElementById('filter-estado');
   var filterUrgencia = document.getElementById('filter-urgencia');
+  var reportBtn = document.getElementById('report-btn');
 
   var detailBackdrop = document.getElementById('detail-backdrop');
   var detailTitle = document.getElementById('detail-title');
@@ -434,6 +438,116 @@
     }).join('&');
     return APPS_SCRIPT_URL + '?' + qs;
   }
+
+  function pad2(n) { return String(n).padStart(2, '0'); }
+
+  function buildReportFilename() {
+    var d = new Date();
+    return 'reporte-tickets-' + d.getFullYear() + pad2(d.getMonth() + 1) + pad2(d.getDate()) +
+      '-' + pad2(d.getHours()) + pad2(d.getMinutes()) + '.pdf';
+  }
+
+  function generarReportePDF() {
+    if (!allTickets.length) {
+      alert('No hay tickets todavía para incluir en el reporte.');
+      return;
+    }
+    if (!window.jspdf || !window.jspdf.jsPDF) {
+      alert('No se pudo cargar el generador de PDF. Revisa tu conexión e intenta de nuevo.');
+      return;
+    }
+
+    var jsPDF = window.jspdf.jsPDF;
+    var doc = new jsPDF({ unit: 'pt', format: 'letter' });
+    var pageWidth = doc.internal.pageSize.getWidth();
+    var pageHeight = doc.internal.pageSize.getHeight();
+    var navy = [26, 61, 124];
+    var ink = [16, 27, 51];
+    var inkSoft = [87, 96, 122];
+
+    doc.setProperties({ title: 'Reporte de Tickets IT · Grupo Firme' });
+
+    doc.setFillColor(navy[0], navy[1], navy[2]);
+    doc.rect(0, 0, pageWidth, 70, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.text('Panel de Tickets IT · Grupo Firme', 40, 32);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.text('Reporte generado el ' + new Date().toLocaleString('es-MX', { dateStyle: 'long', timeStyle: 'short' }), 40, 50);
+
+    var counts = { pendiente: 0, en_proceso: 0, resuelto: 0 };
+    var urg = { 'Baja': 0, 'Media': 0, 'Alta': 0, 'Crítica': 0 };
+    allTickets.forEach(function (t) {
+      if (counts.hasOwnProperty(t.estado)) counts[t.estado]++;
+      if (urg.hasOwnProperty(t.urgencia)) urg[t.urgencia]++;
+    });
+
+    var y = 96;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(ink[0], ink[1], ink[2]);
+    doc.text('Resumen', 40, y);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.setTextColor(inkSoft[0], inkSoft[1], inkSoft[2]);
+    y += 16;
+    doc.text('Total de tickets: ' + allTickets.length, 40, y);
+    y += 14;
+    doc.text('Pendientes: ' + counts.pendiente + '   En proceso: ' + counts.en_proceso + '   Resueltos: ' + counts.resuelto, 40, y);
+    y += 14;
+    doc.text('Urgencia — Baja: ' + urg['Baja'] + '   Media: ' + urg['Media'] + '   Alta: ' + urg['Alta'] + '   Crítica: ' + urg['Crítica'], 40, y);
+
+    var rows = allTickets.map(function (t) {
+      return [
+        t.id || '',
+        fmtTime(t.creado) || '',
+        t.nombre || '',
+        t.area || '',
+        t.categoria || '',
+        t.urgencia || '',
+        ESTADO_LABEL[t.estado] || t.estado || '',
+        (t.descripcion || '').slice(0, 200)
+      ];
+    });
+
+    doc.autoTable({
+      startY: y + 16,
+      head: [['ID', 'Recibido', 'Nombre', 'Área', 'Categoría', 'Urgencia', 'Estado', 'Descripción']],
+      body: rows,
+      styles: { font: 'helvetica', fontSize: 8, cellPadding: 4, textColor: ink, overflow: 'linebreak', valign: 'top' },
+      headStyles: { fillColor: navy, textColor: 255, fontStyle: 'bold' },
+      alternateRowStyles: { fillColor: [243, 246, 252] },
+      columnStyles: {
+        0: { cellWidth: 62 },
+        1: { cellWidth: 68 },
+        2: { cellWidth: 66 },
+        3: { cellWidth: 54 },
+        4: { cellWidth: 66 },
+        5: { cellWidth: 42 },
+        6: { cellWidth: 48 },
+        7: { cellWidth: 'auto' }
+      },
+      margin: { left: 40, right: 40 },
+      didDrawPage: function (data) {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(inkSoft[0], inkSoft[1], inkSoft[2]);
+        doc.text('Mesa de Ayuda IT · Grupo Firme — página ' + data.pageNumber, 40, pageHeight - 20);
+      }
+    });
+
+    doc.save(buildReportFilename());
+  }
+
+  reportBtn.addEventListener('click', function () {
+    try {
+      generarReportePDF();
+    } catch (err) {
+      alert('No se pudo generar el reporte. Intenta de nuevo.');
+    }
+  });
 
   function scheduleUpdate(id, field, value) {
     var t = allTickets.filter(function (x) { return x.id === id; })[0];
@@ -707,6 +821,7 @@
       connStatus.textContent = 'Datos en vivo';
       lockedEl.hidden = true;
       newBtn.disabled = false;
+      reportBtn.disabled = false;
       renderStats(allTickets);
       renderList();
     }).catch(function () {
@@ -714,6 +829,7 @@
       if (!hasLoadedOnce) {
         lockedEl.hidden = false;
         newBtn.disabled = true;
+        reportBtn.disabled = true;
       }
     });
   }
