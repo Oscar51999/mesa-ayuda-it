@@ -324,7 +324,7 @@
   <div class="card">
 
     <form id="ticket-form" novalidate>
-      <fieldset>
+      <fieldset><div class="row2"><div class="field"><label for="f-empresa">Empresa</label><select id="f-empresa" name="empresa" required><option value="" disabled selected>Selecciona una empresa</option><option value="Firme">Firme</option><option value="CISA">CISA</option><option value="Vanguardia">Vanguardia</option><option value="Punta Cortez">Punta Cortez</option></select></div><div class="field"><label for="f-ubicacion">Ubicación</label><input type="text" id="f-ubicacion" name="ubicacion" placeholder="Ej. Oficina Monterrey, Piso 2" required></div></div>
         <div class="row2">
           <div class="field">
             <label for="f-nombre">Nombre completo</label>
@@ -430,7 +430,7 @@
       'Ticket: ' + t.id,
       'Fecha: ' + t.fecha,
       'Nombre: ' + t.nombre,
-      'Área / Departamento: ' + t.area,
+      'Área / Departamento: ' + t.area, 'Empresa: ' + t.empresa, 'Ubicación: ' + t.ubicacion,
       'Categoría: ' + t.categoria,
       'Urgencia: ' + t.urgencia,
       'Contacto: ' + t.contacto,
@@ -455,13 +455,13 @@
     ev.preventDefault();
 
     var nombre = fieldValue('nombre');
-    var area = fieldValue('area');
+    var area = fieldValue('area'); var empresa = fieldValue('empresa'); var ubicacion = fieldValue('ubicacion');
     var categoria = fieldValue('categoria');
     var urgencia = fieldValue('urgencia');
     var contacto = fieldValue('contacto');
     var descripcion = fieldValue('descripcion');
 
-    if (!nombre || !area || !categoria || !urgencia || !contacto || !descripcion) {
+    if (!nombre || !area || !empresa || !ubicacion || !categoria || !urgencia || !contacto || !descripcion) {
       errorMsg.classList.add('show');
       return;
     }
@@ -471,7 +471,7 @@
       id: makeTicketId(),
       fecha: new Date().toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' }),
       nombre: nombre, area: area, categoria: categoria,
-      urgencia: urgencia, contacto: contacto, descripcion: descripcion
+      urgencia: urgencia, contacto: contacto, descripcion: descripcion, empresa: empresa, ubicacion: ubicacion
     };
 
     lastMailto = buildMailto(ticket);
@@ -480,7 +480,7 @@
     confirmId.textContent = ticket.id;
     confirmSummary.innerHTML = '';
     [
-      ['Nombre', ticket.nombre], ['Área', ticket.area],
+      ['Nombre', ticket.nombre], ['Área', ticket.area], ['Empresa', ticket.empresa], ['Ubicación', ticket.ubicacion],
       ['Categoría', ticket.categoria], ['Urgencia', ticket.urgencia],
       ['Contacto', ticket.contacto]
     ].forEach(function (pair) {
