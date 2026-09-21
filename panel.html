@@ -1,10 +1,4 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Panel de Tickets IT</title>
-
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap');
 
@@ -101,6 +95,15 @@
   .tag.urg-alta { color: var(--warn); background: var(--warn-bg); border-color: transparent; }
   .tag.urg-crítica { color: var(--critical); background: var(--critical-bg); border-color: transparent; }
 
+  select.urgencia {
+    font: inherit; font-weight: 600; font-size: 11px; border-radius: 999px; border: 1px solid var(--border);
+    padding: 3px 9px; cursor: pointer; background: var(--surface); color: var(--ink-soft);
+  }
+  select.urgencia[data-v="Baja"] { color: var(--success); background: var(--success-bg); border-color: transparent; }
+  select.urgencia[data-v="Media"] { color: var(--turquoise-deep); background: color-mix(in srgb, var(--turquoise) 16%, var(--surface)); border-color: transparent; }
+  select.urgencia[data-v="Alta"] { color: var(--warn); background: var(--warn-bg); border-color: transparent; }
+  select.urgencia[data-v="Crítica"] { color: var(--critical); background: var(--critical-bg); border-color: transparent; }
+
   .ticket-who { font-size: 14px; font-weight: 600; margin: 10px 0 2px; }
   .ticket-meta { font-size: 12.5px; color: var(--ink-soft); margin-bottom: 8px; }
   .ticket-desc { font-size: 13.5px; line-height: 1.55; color: var(--ink); white-space: pre-wrap; }
@@ -141,6 +144,12 @@
   @media (max-width: 480px) { .modal .row2 { grid-template-columns: 1fr; } }
   .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
 
+  .detail-value { font-size: 13.5px; color: var(--ink); }
+  .detail-value a { color: var(--turquoise-deep); }
+  .detail-block { white-space: pre-wrap; line-height: 1.55; background: var(--paper); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; min-height: 20px; }
+  .detail-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+  .detail-head .tags { display: flex; gap: 6px; flex-wrap: wrap; }
+
 
   .gate {
     min-height: 70vh;
@@ -174,8 +183,6 @@
 
   [hidden] { display: none !important; }
 </style>
-</head>
-<body>
 
 <div id="gate" class="gate">
   <div class="gate-card">
@@ -280,6 +287,25 @@
     </form>
   </div>
 </div>
+
+<div class="modal-backdrop" id="detail-backdrop" hidden>
+  <div class="modal">
+    <div class="detail-head">
+      <h2 id="detail-title" style="margin:0;">Ticket</h2>
+      <div class="tags" id="detail-tags"></div>
+    </div>
+    <div class="field"><label>Solicitante</label><div id="detail-who" class="detail-value"></div></div>
+    <div class="row2">
+      <div class="field"><label>Contacto</label><div id="detail-contacto" class="detail-value"></div></div>
+      <div class="field"><label>Recibido</label><div id="detail-fecha" class="detail-value"></div></div>
+    </div>
+    <div class="field"><label>Descripción</label><div id="detail-desc" class="detail-value detail-block"></div></div>
+    <div class="field"><label>Notas internas</label><div id="detail-notas" class="detail-value detail-block"></div></div>
+    <div class="modal-actions">
+      <button type="button" class="secondary" id="detail-close">Cerrar</button>
+    </div>
+  </div>
+</div>
 </div><!-- /app-content -->
 
 <script>
@@ -296,6 +322,16 @@
   var filterEstado = document.getElementById('filter-estado');
   var filterUrgencia = document.getElementById('filter-urgencia');
 
+  var detailBackdrop = document.getElementById('detail-backdrop');
+  var detailTitle = document.getElementById('detail-title');
+  var detailTags = document.getElementById('detail-tags');
+  var detailWho = document.getElementById('detail-who');
+  var detailContacto = document.getElementById('detail-contacto');
+  var detailFecha = document.getElementById('detail-fecha');
+  var detailDesc = document.getElementById('detail-desc');
+  var detailNotas = document.getElementById('detail-notas');
+  var detailClose = document.getElementById('detail-close');
+
   var APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxYs8v7ExRmBH2vH5G7lYEhfy0_h4_p21GauiWcwvaHiiAL4HkSftcfXLYg3lL9mFf6CQ/exec';
   var POLL_MS = 6000;
   var pollTimer = null;
@@ -305,6 +341,7 @@
 
   var allTickets = [];
   var writeTimers = {};
+  var pendingDeletes = {};
 
   var ESTADO_LABEL = { pendiente: 'Pendiente', en_proceso: 'En proceso', resuelto: 'Resuelto' };
 
@@ -326,6 +363,50 @@
     try { return new Date(ms).toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' }); }
     catch (e) { return ''; }
   }
+
+  var EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  function renderContacto(container, value) {
+    container.textContent = '';
+    if (!value) { container.textContent = '—'; return; }
+    if (EMAIL_RE.test(value.trim())) {
+      var a = document.createElement('a');
+      a.href = 'mailto:' + value.trim();
+      a.textContent = value;
+      container.appendChild(a);
+    } else {
+      container.textContent = value;
+    }
+  }
+
+  function openDetail(t) {
+    detailTitle.textContent = t.id;
+    detailTags.textContent = '';
+    var urgTag = document.createElement('span');
+    urgTag.className = 'tag ' + urgClass(t.urgencia);
+    urgTag.textContent = t.urgencia || '—';
+    var catTag = document.createElement('span');
+    catTag.className = 'tag';
+    catTag.textContent = t.categoria || '—';
+    var estTag = document.createElement('span');
+    estTag.className = 'tag';
+    estTag.textContent = ESTADO_LABEL[t.estado] || t.estado || '—';
+    detailTags.appendChild(urgTag); detailTags.appendChild(catTag); detailTags.appendChild(estTag);
+
+    detailWho.textContent = (t.nombre || 'Sin nombre') + ' · ' + (t.area || '—');
+    renderContacto(detailContacto, t.contacto);
+    detailFecha.textContent = fmtTime(t.creado) || '—';
+    detailDesc.textContent = t.descripcion || '—';
+    detailNotas.textContent = t.notas || 'Sin notas todavía.';
+    detailBackdrop.hidden = false;
+  }
+
+  function closeDetail() { detailBackdrop.hidden = true; }
+
+  detailClose.addEventListener('click', closeDetail);
+  detailBackdrop.addEventListener('click', function (ev) {
+    if (ev.target === detailBackdrop) closeDetail();
+  });
 
   function renderStats(tickets) {
     var counts = { pendiente: 0, en_proceso: 0, resuelto: 0 };
@@ -375,11 +456,20 @@
     idEl.className = 'ticket-id';
     var tags = document.createElement('div');
     tags.className = 'tags';
-    var urgTag = document.createElement('span');
-    urgTag.className = 'tag';
+    var urgSel = document.createElement('select');
+    urgSel.className = 'urgencia';
+    ['Baja', 'Media', 'Alta', 'Crítica'].forEach(function (v) {
+      var opt = document.createElement('option');
+      opt.value = v; opt.textContent = v;
+      urgSel.appendChild(opt);
+    });
+    urgSel.addEventListener('change', function () {
+      urgSel.dataset.v = urgSel.value;
+      scheduleUpdate(entry.ticket.id, 'urgencia', urgSel.value);
+    });
     var catTag = document.createElement('span');
     catTag.className = 'tag';
-    tags.appendChild(urgTag); tags.appendChild(catTag);
+    tags.appendChild(urgSel); tags.appendChild(catTag);
     top.appendChild(idEl); top.appendChild(tags);
 
     var who = document.createElement('div');
@@ -408,30 +498,43 @@
       scheduleUpdate(entry.ticket.id, 'estado', estadoSel.value);
     });
 
+    var viewBtn = document.createElement('button');
+    viewBtn.className = 'secondary';
+    viewBtn.type = 'button';
+    viewBtn.textContent = 'Ver detalle';
+    viewBtn.addEventListener('click', function () { openDetail(entry.ticket); });
+
     var delBtn = document.createElement('button');
-    delBtn.className = 'secondary';
+    delBtn.className = 'secondary danger';
     delBtn.type = 'button';
     delBtn.textContent = 'Eliminar';
     delBtn.addEventListener('click', function () {
-      if (delBtn.dataset.confirm === '1') {
-        var id = entry.ticket.id;
-        allTickets = allTickets.filter(function (x) { return x.id !== id; });
-        renderStats(allTickets);
-        renderList();
-        fetch(buildUrl({ action: 'delete', id: id })).catch(function () {});
-      } else {
-        delBtn.dataset.confirm = '1';
-        delBtn.textContent = 'Confirmar eliminar';
-        delBtn.className = 'secondary danger';
-        setTimeout(function () {
-          delBtn.dataset.confirm = '0';
-          delBtn.textContent = 'Eliminar';
-          delBtn.className = 'secondary';
-        }, 3000);
-      }
+      var id = entry.ticket.id;
+      var ok = window.confirm('¿Eliminar el ticket ' + id + '? Esta acción no se puede deshacer.');
+      if (!ok) return;
+
+      delBtn.disabled = true;
+      delBtn.textContent = 'Eliminando…';
+      pendingDeletes[id] = true;
+      allTickets = allTickets.filter(function (x) { return x.id !== id; });
+      renderStats(allTickets);
+      renderList();
+
+      fetch(buildUrl({ action: 'delete', id: id }))
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+          if (!data || !data.ok) throw new Error('delete failed');
+          delete pendingDeletes[id];
+        })
+        .catch(function () {
+          delete pendingDeletes[id];
+          alert('No se pudo eliminar el ticket ' + id + '. Revisa tu conexión e intenta de nuevo.');
+          refreshNow();
+        });
     });
 
     footerLeft.appendChild(estadoSel);
+    footerLeft.appendChild(viewBtn);
     footerLeft.appendChild(delBtn);
 
     var time = document.createElement('div');
@@ -461,7 +564,7 @@
 
     entry.el = card;
     entry.idEl = idEl;
-    entry.urgTag = urgTag;
+    entry.urgSel = urgSel;
     entry.catTag = catTag;
     entry.who = who;
     entry.meta = meta;
@@ -477,8 +580,10 @@
   function applyTicketData(entry, t) {
     entry.ticket = t;
     entry.idEl.textContent = t.id;
-    entry.urgTag.className = 'tag ' + urgClass(t.urgencia);
-    entry.urgTag.textContent = t.urgencia || '—';
+    if (document.activeElement !== entry.urgSel) {
+      entry.urgSel.value = t.urgencia || 'Media';
+      entry.urgSel.dataset.v = t.urgencia || 'Media';
+    }
     entry.catTag.textContent = t.categoria || '—';
     entry.who.textContent = (t.nombre || 'Sin nombre') + ' · ' + (t.area || '—');
     entry.meta.textContent = 'Contacto: ' + (t.contacto || '—');
@@ -595,6 +700,7 @@
 
   function pollOnce() {
     return fetchList().then(function (tickets) {
+      tickets = tickets.filter(function (t) { return !pendingDeletes[t.id]; });
       tickets.sort(function (a, b) { return (b.creado || 0) - (a.creado || 0); });
       allTickets = tickets;
       hasLoadedOnce = true;
@@ -662,5 +768,3 @@
   }
 })();
 </script>
-
-</html>
