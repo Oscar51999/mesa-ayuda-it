@@ -397,7 +397,7 @@
     estTag.textContent = ESTADO_LABEL[t.estado] || t.estado || '—';
     detailTags.appendChild(urgTag); detailTags.appendChild(catTag); detailTags.appendChild(estTag);
 
-    detailWho.textContent = (t.nombre || 'Sin nombre') + ' · ' + (t.area || '—');
+    detailWho.textContent = (t.nombre || 'Sin nombre') + ' · ' + (t.area || '—') + (t.empresa ? ' · ' + t.empresa : '') + (t.ubicacion ? ' · ' + t.ubicacion : '');
     renderContacto(detailContacto, t.contacto);
     detailFecha.textContent = fmtTime(t.creado) || '—';
     detailDesc.textContent = t.descripcion || '—';
@@ -820,7 +820,9 @@ function s(v) { return (v === null || v === undefined) ? '' : String(v); }
       contacto: s(t.contacto),
       descripcion: s(t.descripcion),
       estado: s(t.estado),
-      notas: s(t.notas)
+      notas: s(t.notas),
+                                                                             empresa: s(t.empresa),
+              ubicacion: s(t.ubicacion)
     };
   }
   
