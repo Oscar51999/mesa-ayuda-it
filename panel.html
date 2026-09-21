@@ -309,8 +309,8 @@
 </div>
 </div><!-- /app-content -->
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf-autotable.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
 <script>
 (function () {
   var listEl = document.getElementById('list');
@@ -459,6 +459,10 @@
 
     var jsPDF = window.jspdf.jsPDF;
     var doc = new jsPDF({ unit: 'pt', format: 'letter' });
+    if (typeof doc.autoTable !== 'function') {
+      alert('No se pudo cargar la tabla del reporte. Revisa tu conexión e intenta de nuevo.');
+      return;
+    }
     var pageWidth = doc.internal.pageSize.getWidth();
     var pageHeight = doc.internal.pageSize.getHeight();
     var navy = [26, 61, 124];
