@@ -15,6 +15,8 @@
     --paper: #F3F6FC;
     --surface: #FFFFFF;
     --ink: #1D1D1B;
+    --topbar-bg: #1D1D1B;
+    --accent-gradient: linear-gradient(90deg, var(--critical) 0%, var(--turquoise) 55%, #FFCD00 100%);
     --ink-soft: #57607A;
     --border: #DDE3F0;
     --success: #1C9463;
@@ -76,10 +78,18 @@
   a { color: var(--turquoise-deep); }
 
   .topbar {
-    background: var(--navy);
+    background: var(--topbar-bg);
     margin-inline: -16px;
     padding: 28px 16px 32px;
     color: #FFFFFF;
+    position: relative;
+  }
+  .topbar::after {
+    content: "";
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 4px;
+    background: var(--accent-gradient);
   }
   .topbar-inner { max-width: 640px; margin: 0 auto; }
   .brand {
