@@ -321,6 +321,54 @@
     color: var(--ink-soft);
   }
 
+  .img-slots {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }
+  .img-slot {
+    aspect-ratio: 1;
+    border: 1.5px dashed var(--border);
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    cursor: pointer;
+    color: var(--ink-soft);
+    font-size: 11.5px;
+    font-weight: 500;
+    text-align: center;
+    background: var(--paper);
+    transition: border-color .15s, background .15s;
+  }
+  .img-slot:hover { border-color: var(--turquoise); }
+  .img-slot svg { width: 20px; height: 20px; stroke: var(--ink-soft); }
+  .img-preview {
+    position: relative;
+    border-radius: 8px;
+    overflow: hidden;
+    aspect-ratio: 1;
+    border: 1px solid var(--border);
+    background: var(--paper);
+  }
+  .img-preview img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .img-remove {
+    position: absolute; top: 4px; right: 4px;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: rgba(29,29,27,.72);
+    color: #fff;
+    border: none;
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    padding: 0;
+  }
+  .img-remove:hover { background: var(--critical); }
+
   [hidden] { display: none !important; }
 </style>
 </head>
@@ -380,6 +428,13 @@
           <label for="f-desc">Describe el problema o lo que necesitas</label>
           <textarea id="f-desc" name="descripcion" placeholder="Qué pasó, desde cuándo, y qué intentaste hacer..." required></textarea>
         </div>
+
+        <div class="field">
+          <label>Imagen de referencia <span class="opt">(opcional, máx. 3)</span></label>
+          <div class="img-slots" id="img-slots"></div>
+          <p class="hint">Agrega una captura de pantalla o foto que ayude a entender el problema.</p>
+          <p class="error-msg" id="img-error">No se pudo cargar una de las imágenes. Intenta de nuevo.</p>
+        </div>
       </fieldset>
 
       <p class="error-msg" id="error-msg">Por favor completa todos los campos antes de enviar.</p>
@@ -418,6 +473,90 @@
   var lastMailto = '';
   var confirmText = document.getElementById('confirm-text');
 
+  // --- Imágenes de referencia (máx. 3) ---
+  var MAX_IMAGES = 3;
+  var images = []; // { name, type, dataUrl }
+  var imgSlots = document.getElementById('img-slots');
+
+  function renderImgSlots() {
+    imgSlots.innerHTML = '';
+    images.forEach(function (img, idx) {
+      var slot = document.createElement('div');
+      slot.className = 'img-preview';
+      var im = document.createElement('img');
+      im.src = img.dataUrl;
+      im.alt = img.name;
+      var rm = document.createElement('button');
+      rm.type = 'button';
+      rm.className = 'img-remove';
+      rm.setAttribute('aria-label', 'Quitar imagen');
+      rm.textContent = '×';
+      rm.addEventListener('click', function () {
+        images.splice(idx, 1);
+        renderImgSlots();
+      });
+      slot.appendChild(im);
+      slot.appendChild(rm);
+      imgSlots.appendChild(slot);
+    });
+    if (images.length < MAX_IMAGES) {
+      var addLabel = document.createElement('label');
+      addLabel.className = 'img-slot';
+      addLabel.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg><span>Agregar</span>';
+      var input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.multiple = true;
+      input.hidden = true;
+      input.addEventListener('change', handleImgFiles);
+      addLabel.appendChild(input);
+      imgSlots.appendChild(addLabel);
+    }
+  }
+
+  function resizeImage(file, maxDim, quality) {
+    return new Promise(function (resolve, reject) {
+      var reader = new FileReader();
+      reader.onload = function (e) {
+        var img = new Image();
+        img.onload = function () {
+          var w = img.width, h = img.height;
+          if (w > maxDim || h > maxDim) {
+            if (w > h) { h = Math.round(h * maxDim / w); w = maxDim; }
+            else { w = Math.round(w * maxDim / h); h = maxDim; }
+          }
+          var canvas = document.createElement('canvas');
+          canvas.width = w; canvas.height = h;
+          canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.onerror = function () { reject(new Error('No se pudo leer la imagen')); };
+        img.src = e.target.result;
+      };
+      reader.onerror = function () { reject(new Error('No se pudo leer el archivo')); };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function handleImgFiles(ev) {
+    var files = Array.prototype.slice.call(ev.target.files || []);
+    var remaining = MAX_IMAGES - images.length;
+    files = files.filter(function (f) { return f.type.indexOf('image/') === 0; }).slice(0, remaining);
+    if (!files.length) return;
+    Promise.all(files.map(function (f) {
+      return resizeImage(f, 1600, 0.72).then(function (dataUrl) {
+        return { name: f.name, type: 'image/jpeg', dataUrl: dataUrl };
+      });
+    })).then(function (results) {
+      images = images.concat(results);
+      renderImgSlots();
+    }).catch(function () {
+      document.getElementById('img-error').classList.add('show');
+    });
+  }
+
+  renderImgSlots();
+
   function makeTicketId() {
     var d = new Date();
     var pad = function (n) { return String(n).padStart(2, '0'); };
@@ -438,7 +577,7 @@
 
   function buildMailto(t) {
     var subject = 'Mesa de Ayuda IT: ' + t.categoria + ' (' + t.urgencia + ') - ' + t.nombre;
-    var body = [
+    var bodyLines = [
       'Ticket: ' + t.id,
       'Fecha: ' + t.fecha,
       'Nombre: ' + t.nombre,
@@ -449,7 +588,12 @@
       '',
       'Descripción:',
       t.descripcion
-    ].join('\n');
+    ];
+    if (t.imagenes && t.imagenes.length) {
+      bodyLines.push('');
+      bodyLines.push('Imágenes de referencia: adjunta manualmente a este correo (' + t.imagenes.map(function (i) { return i.name; }).join(', ') + ').');
+    }
+    var body = bodyLines.join('\n');
     return 'mailto:' + DEST_EMAIL + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
   }
 
@@ -483,7 +627,8 @@
       id: makeTicketId(),
       fecha: new Date().toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' }),
       nombre: nombre, area: area, categoria: categoria,
-      urgencia: urgencia, contacto: contacto, descripcion: descripcion, empresa: empresa, ubicacion: ubicacion
+      urgencia: urgencia, contacto: contacto, descripcion: descripcion, empresa: empresa, ubicacion: ubicacion,
+      imagenes: images.map(function (i) { return { nombre: i.name, tipo: i.type, datos: i.dataUrl }; })
     };
 
     lastMailto = buildMailto(ticket);
@@ -494,7 +639,8 @@
     [
       ['Nombre', ticket.nombre], ['Área', ticket.area], ['Empresa', ticket.empresa], ['Ubicación', ticket.ubicacion],
       ['Categoría', ticket.categoria], ['Urgencia', ticket.urgencia],
-      ['Contacto', ticket.contacto]
+      ['Contacto', ticket.contacto],
+      ['Imágenes', ticket.imagenes.length ? (ticket.imagenes.length + ' adjunta(s)') : 'Ninguna']
     ].forEach(function (pair) {
       var row = document.createElement('div');
       var dt = document.createElement('dt'); dt.textContent = pair[0];
@@ -532,6 +678,9 @@
     ev.preventDefault();
     form.reset();
     errorMsg.classList.remove('show');
+    document.getElementById('img-error').classList.remove('show');
+    images = [];
+    renderImgSlots();
     confirmView.hidden = true;
     form.hidden = false;
   });
