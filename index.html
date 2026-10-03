@@ -607,6 +607,19 @@
     } catch (e) { /* per-device convenience only; ignore failures */ }
   }
 
+  function updateLocalHistoryId(oldId, newId) {
+    try {
+      var key = 'gfm_it_tickets_local';
+      var raw = localStorage.getItem(key);
+      if (!raw) return;
+      var list = JSON.parse(raw);
+      for (var i = 0; i < list.length; i++) {
+        if (list[i].id === oldId) { list[i].id = newId; break; }
+      }
+      localStorage.setItem(key, JSON.stringify(list));
+    } catch (e) { /* per-device convenience only; ignore failures */ }
+  }
+
   form.addEventListener('submit', function (ev) {
     ev.preventDefault();
 
@@ -661,6 +674,13 @@
       body: JSON.stringify(ticket)
     }).then(function (res) {
       if (!res.ok) throw new Error('bad status');
+      return res.json().catch(function () { return null; });
+    }).then(function (data) {
+      if (data && data.id) {
+        updateLocalHistoryId(ticket.id, data.id);
+        ticket.id = data.id;
+        confirmId.textContent = data.id;
+      }
       confirmText.textContent = 'Tu solicitud ya llegó a IT automáticamente por correo y quedó registrada.';
       resendBtn.hidden = true;
     }).catch(function () {
