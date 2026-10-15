@@ -470,7 +470,7 @@
     }
 
     var jsPDF = window.jspdf.jsPDF;
-    var doc = new jsPDF({ unit: 'pt', format: 'letter' });
+    var doc = new jsPDF({ unit: 'pt', format: 'letter', orientation: 'landscape' });
     if (typeof doc.autoTable !== 'function') {
       alert('No se pudo cargar la tabla del reporte. Revisa tu conexión e intenta de nuevo.');
       return;
@@ -532,26 +532,28 @@
         t.categoria || '',
         t.urgencia || '',
         ESTADO_LABEL[t.estado] || t.estado || '',
-        (t.descripcion || '').slice(0, 200)
+        (t.descripcion || '').slice(0, 200),
+        (t.notas || '').slice(0, 200)
       ];
     });
 
     doc.autoTable({
       startY: y + 16,
-      head: [['ID', 'Recibido', 'Nombre', 'Área', 'Categoría', 'Urgencia', 'Estado', 'Descripción']],
+      head: [['ID', 'Recibido', 'Nombre', 'Área', 'Categoría', 'Urgencia', 'Estado', 'Descripción', 'Notas internas']],
       body: rows,
       styles: { font: 'helvetica', fontSize: 8, cellPadding: 4, textColor: ink, overflow: 'linebreak', valign: 'top' },
       headStyles: { fillColor: navy, textColor: 255, fontStyle: 'bold' },
       alternateRowStyles: { fillColor: [243, 246, 252] },
       columnStyles: {
-        0: { cellWidth: 62 },
-        1: { cellWidth: 68 },
-        2: { cellWidth: 66 },
-        3: { cellWidth: 54 },
-        4: { cellWidth: 66 },
-        5: { cellWidth: 42 },
-        6: { cellWidth: 48 },
-        7: { cellWidth: 'auto' }
+        0: { cellWidth: 58 },
+        1: { cellWidth: 70 },
+        2: { cellWidth: 80 },
+        3: { cellWidth: 60 },
+        4: { cellWidth: 70 },
+        5: { cellWidth: 46 },
+        6: { cellWidth: 54 },
+        7: { cellWidth: 'auto' },
+        8: { cellWidth: 'auto' }
       },
       margin: { left: 40, right: 40 },
       didDrawPage: function (data) {
@@ -763,6 +765,7 @@
       noneEl.parentNode.removeChild(noneEl);
     }
 
+    var prevNode = null;
     filtered.forEach(function (t) {
       var entry = cardMap[t.id];
       if (!entry) {
@@ -771,7 +774,11 @@
       } else {
         applyTicketData(entry, t);
       }
-      listEl.appendChild(entry.el);
+      var expectedNext = prevNode ? prevNode.nextSibling : listEl.firstChild;
+      if (entry.el !== expectedNext) {
+        listEl.insertBefore(entry.el, expectedNext);
+      }
+      prevNode = entry.el;
     });
   }
 
