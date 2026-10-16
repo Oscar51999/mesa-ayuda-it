@@ -153,6 +153,13 @@
   .detail-block { white-space: pre-wrap; line-height: 1.55; background: var(--paper); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; min-height: 20px; }
   .detail-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
   .detail-head .tags { display: flex; gap: 6px; flex-wrap: wrap; }
+  #detail-backdrop .modal { max-width: 720px; }
+  .notas-textarea-lg { width: 100%; box-sizing: border-box; font: inherit; resize: vertical; min-height: 130px; }
+  .hashtag-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .tag-hashtag { color: var(--turquoise-deep); background: color-mix(in srgb, var(--turquoise) 16%, var(--surface)); border-color: transparent; }
+  .detail-images { display: flex; flex-wrap: wrap; gap: 10px; }
+  .detail-image-thumb { width: 92px; height: 92px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); display: block; }
+  .detail-images-empty { font-size: 12.5px; color: var(--ink-soft); }
 
 
   .gate {
@@ -308,7 +315,12 @@
       <div class="field"><label>Recibido</label><div id="detail-fecha" class="detail-value"></div></div>
     </div>
     <div class="field"><label>Descripción</label><div id="detail-desc" class="detail-value detail-block"></div></div>
-    <div class="field"><label>Notas internas</label><div id="detail-notas" class="detail-value detail-block"></div></div>
+    <div class="field"><label>Imágenes adjuntas</label><div id="detail-images" class="detail-images"></div></div>
+    <div class="field">
+      <label>Notas internas</label>
+      <textarea id="detail-notas" class="detail-value detail-block notas-textarea-lg" placeholder="Seguimiento, etiquetas como #urgente #laptop, próximos pasos…"></textarea>
+      <div class="hashtag-chips" id="detail-notas-tags"></div>
+    </div>
     <div class="modal-actions">
       <button type="button" class="secondary" id="detail-close">Cerrar</button>
     </div>
@@ -341,6 +353,8 @@
   var detailFecha = document.getElementById('detail-fecha');
   var detailDesc = document.getElementById('detail-desc');
   var detailNotas = document.getElementById('detail-notas');
+  var detailImages = document.getElementById('detail-images');
+  var detailNotasTags = document.getElementById('detail-notas-tags');
   var detailClose = document.getElementById('detail-close');
 
   var APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxYs8v7ExRmBH2vH5G7lYEhfy0_h4_p21GauiWcwvaHiiAL4HkSftcfXLYg3lL9mFf6CQ/exec';
@@ -353,6 +367,7 @@
   var allTickets = [];
   var writeTimers = {};
   var pendingDeletes = {};
+  var currentDetailId = null;
 
   var ESTADO_LABEL = { pendiente: 'Pendiente', en_proceso: 'En proceso', resuelto: 'Resuelto' };
 
@@ -390,7 +405,54 @@
     }
   }
 
-  function openDetail(t) {
+  function extractHashtags(text) {
+    var re = /#[^\s#]{1,40}/g;
+    var found = (text || '').match(re) || [];
+    var seen = {};
+    var out = [];
+    found.forEach(function (h) {
+      var key = h.toLowerCase();
+      if (!seen[key]) { seen[key] = true; out.push(h); }
+    });
+    return out;
+  }
+
+  function renderHashtagChips(container, tags) {
+    container.textContent = '';
+    tags.forEach(function (tag) {
+      var chip = document.createElement('span');
+      chip.className = 'tag tag-hashtag';
+      chip.textContent = tag;
+      container.appendChild(chip);
+    });
+  }
+
+  function renderDetailImages(container, imagenes) {
+    container.textContent = '';
+    var list = Array.isArray(imagenes) ? imagenes.filter(Boolean) : [];
+    if (!list.length) {
+      var empty = document.createElement('div');
+      empty.className = 'detail-images-empty';
+      empty.textContent = 'Sin imágenes adjuntas.';
+      container.appendChild(empty);
+      return;
+    }
+    list.forEach(function (fileId) {
+      var a = document.createElement('a');
+      a.href = 'https://drive.google.com/file/d/' + fileId + '/view';
+      a.target = '_blank';
+      a.rel = 'noopener';
+      var img = document.createElement('img');
+      img.className = 'detail-image-thumb';
+      img.loading = 'lazy';
+      img.src = 'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w400';
+      img.alt = 'Imagen adjunta';
+      a.appendChild(img);
+      container.appendChild(a);
+    });
+  }
+
+  function renderDetailBody(t) {
     detailTitle.textContent = t.id;
     detailTags.textContent = '';
     var urgTag = document.createElement('span');
@@ -408,15 +470,41 @@
     renderContacto(detailContacto, t.contacto);
     detailFecha.textContent = fmtTime(t.creado) || '—';
     detailDesc.textContent = t.descripcion || '—';
-    detailNotas.textContent = t.notas || 'Sin notas todavía.';
+    renderDetailImages(detailImages, t.imagenes);
+    if (document.activeElement !== detailNotas) {
+      detailNotas.value = t.notas || '';
+      renderHashtagChips(detailNotasTags, extractHashtags(detailNotas.value));
+    }
+  }
+
+  function openDetail(t) {
+    currentDetailId = t.id;
+    renderDetailBody(t);
     detailBackdrop.hidden = false;
   }
 
-  function closeDetail() { detailBackdrop.hidden = true; }
+  function refreshDetailIfOpen() {
+    if (!currentDetailId || detailBackdrop.hidden) return;
+    var t = allTickets.filter(function (x) { return x.id === currentDetailId; })[0];
+    if (!t) { closeDetail(); return; }
+    renderDetailBody(t);
+  }
+
+  function closeDetail() { detailBackdrop.hidden = true; currentDetailId = null; }
 
   detailClose.addEventListener('click', closeDetail);
   detailBackdrop.addEventListener('click', function (ev) {
     if (ev.target === detailBackdrop) closeDetail();
+  });
+
+  detailNotas.addEventListener('input', function () {
+    if (!currentDetailId) return;
+    scheduleUpdate(currentDetailId, 'notas', detailNotas.value);
+    renderHashtagChips(detailNotasTags, extractHashtags(detailNotas.value));
+    var cardEntry = cardMap[currentDetailId];
+    if (cardEntry && document.activeElement !== cardEntry.notasArea) {
+      cardEntry.notasArea.value = detailNotas.value;
+    }
   });
 
   function renderStats(tickets) {
@@ -691,6 +779,10 @@
     notasArea.placeholder = 'Seguimiento, quién lo atiende, próximos pasos…';
     notasArea.addEventListener('input', function () {
       scheduleUpdate(entry.ticket.id, 'notas', notasArea.value);
+      if (currentDetailId === entry.ticket.id && document.activeElement !== detailNotas) {
+        detailNotas.value = notasArea.value;
+        renderHashtagChips(detailNotasTags, extractHashtags(detailNotas.value));
+      }
     });
     notasWrap.appendChild(notasLabel);
     notasWrap.appendChild(notasArea);
@@ -848,8 +940,9 @@ function s(v) { return (v === null || v === undefined) ? '' : String(v); }
       descripcion: s(t.descripcion),
       estado: s(t.estado),
       notas: s(t.notas),
-                                                                             empresa: s(t.empresa),
-              ubicacion: s(t.ubicacion)
+      empresa: s(t.empresa),
+      ubicacion: s(t.ubicacion),
+      imagenes: Array.isArray(t.imagenes) ? t.imagenes.filter(Boolean).map(String) : []
     };
   }
   
@@ -874,6 +967,7 @@ function s(v) { return (v === null || v === undefined) ? '' : String(v); }
       reportBtn.disabled = false;
       renderStats(allTickets);
       renderList();
+      refreshDetailIfOpen();
     }).catch(function () {
       connStatus.textContent = hasLoadedOnce ? 'Sin conexión (reintentando…)' : 'Datos no disponibles';
       if (!hasLoadedOnce) {
