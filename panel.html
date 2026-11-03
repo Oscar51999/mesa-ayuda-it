@@ -66,6 +66,7 @@
   .stat[data-tone="pending"] .n { color: var(--warn); }
   .stat[data-tone="progress"] .n { color: var(--turquoise-deep); }
   .stat[data-tone="done"] .n { color: var(--success); }
+  .stat[data-tone="archived"] .n { color: var(--ink-soft); }
 
   .toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
   .toolbar input[type="search"], .toolbar select {
@@ -123,6 +124,7 @@
   select.estado[data-v="pendiente"] { color: var(--warn); background: var(--warn-bg); }
   select.estado[data-v="en_proceso"] { color: var(--turquoise-deep); background: color-mix(in srgb, var(--turquoise) 16%, var(--surface)); }
   select.estado[data-v="resuelto"] { color: var(--success); background: var(--success-bg); }
+  select.estado[data-v="archivado"] { color: var(--ink-soft); background: var(--border); }
   .ticket-time { font-size: 11.5px; color: var(--ink-soft); }
 
   .notas-wrap { margin-top: 10px; }
@@ -232,6 +234,7 @@
     <div class="stat" data-tone="pending"><div class="n" id="stat-pendiente">–</div><div class="l">Pendientes</div></div>
     <div class="stat" data-tone="progress"><div class="n" id="stat-proceso">–</div><div class="l">En proceso</div></div>
     <div class="stat" data-tone="done"><div class="n" id="stat-resuelto">–</div><div class="l">Resueltos</div></div>
+    <div class="stat" data-tone="archived"><div class="n" id="stat-archivado">–</div><div class="l">Archivados</div></div>
     <div class="stat"><div class="n" id="stat-total">–</div><div class="l">Total</div></div>
   </div>
 
@@ -242,6 +245,7 @@
       <option value="pendiente">Pendiente</option>
       <option value="en_proceso">En proceso</option>
       <option value="resuelto">Resuelto</option>
+      <option value="archivado">Archivado</option>
     </select>
     <select id="filter-urgencia">
       <option value="">Toda urgencia</option>
@@ -299,6 +303,7 @@
           <option value="pendiente">Pendiente</option>
           <option value="en_proceso">En proceso</option>
           <option value="resuelto">Resuelto</option>
+          <option value="archivado">Archivado</option>
         </select>
       </div>
       <div class="modal-actions">
@@ -386,7 +391,7 @@
   var pendingDeletes = {};
   var currentDetailId = null;
 
-  var ESTADO_LABEL = { pendiente: 'Pendiente', en_proceso: 'En proceso', resuelto: 'Resuelto' };
+  var ESTADO_LABEL = { pendiente: 'Pendiente', en_proceso: 'En proceso', resuelto: 'Resuelto', archivado: 'Archivado' };
 
   function makeTicketId() {
     var d = new Date();
@@ -590,11 +595,12 @@
   });
 
   function renderStats(tickets) {
-    var counts = { pendiente: 0, en_proceso: 0, resuelto: 0 };
+    var counts = { pendiente: 0, en_proceso: 0, resuelto: 0, archivado: 0 };
     tickets.forEach(function (t) { if (counts.hasOwnProperty(t.estado)) counts[t.estado]++; });
     document.getElementById('stat-pendiente').textContent = counts.pendiente;
     document.getElementById('stat-proceso').textContent = counts.en_proceso;
     document.getElementById('stat-resuelto').textContent = counts.resuelto;
+    document.getElementById('stat-archivado').textContent = counts.archivado;
     document.getElementById('stat-total').textContent = tickets.length;
   }
 
@@ -747,7 +753,7 @@
     if (searchInput.value.trim()) filterParts.push('Búsqueda = "' + searchInput.value.trim() + '"');
     var filterLine = filterParts.length ? 'Filtros aplicados: ' + filterParts.join(' · ') : 'Sin filtros aplicados (todos los tickets)';
 
-    var counts = { pendiente: 0, en_proceso: 0, resuelto: 0 };
+    var counts = { pendiente: 0, en_proceso: 0, resuelto: 0, archivado: 0 };
     var urg = { 'Baja': 0, 'Media': 0, 'Alta': 0, 'Crítica': 0 };
     reportTickets.forEach(function (t) {
       if (counts.hasOwnProperty(t.estado)) counts[t.estado]++;
@@ -767,7 +773,7 @@
     y += 14;
     doc.text('Total de tickets: ' + reportTickets.length, 40, y);
     y += 14;
-    doc.text('Pendientes: ' + counts.pendiente + '   En proceso: ' + counts.en_proceso + '   Resueltos: ' + counts.resuelto, 40, y);
+    doc.text('Pendientes: ' + counts.pendiente + '   En proceso: ' + counts.en_proceso + '   Resueltos: ' + counts.resuelto + '   Archivados: ' + counts.archivado, 40, y);
     y += 14;
     doc.text('Urgencia — Baja: ' + urg['Baja'] + '   Media: ' + urg['Media'] + '   Alta: ' + urg['Alta'] + '   Crítica: ' + urg['Crítica'], 40, y);
 
@@ -876,7 +882,7 @@
 
     var estadoSel = document.createElement('select');
     estadoSel.className = 'estado';
-    ['pendiente', 'en_proceso', 'resuelto'].forEach(function (v) {
+    ['pendiente', 'en_proceso', 'resuelto', 'archivado'].forEach(function (v) {
       var opt = document.createElement('option');
       opt.value = v; opt.textContent = ESTADO_LABEL[v];
       estadoSel.appendChild(opt);
