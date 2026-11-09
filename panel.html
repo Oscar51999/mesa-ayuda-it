@@ -49,6 +49,9 @@
   .topbar { background: var(--topbar-bg); margin-inline: -16px; padding: 24px 16px 28px; color: #fff; position: relative; }
   .topbar::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: var(--accent-gradient); }
   .topbar-inner { max-width: 1040px; margin: 0 auto; display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+  .topbar-right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+  .logout-link { background: none; border: none; color: #fff; opacity: .8; font: inherit; font-size: .85em; cursor: pointer; text-decoration: underline; padding: 0; }
+  .logout-link:hover { opacity: 1; }
   .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
   .brand-mark { width: 22px; height: 22px; border-radius: 6px; background: var(--turquoise); display: inline-flex; align-items: center; justify-content: center; color: var(--navy-deep); font-family: 'Sora', sans-serif; font-weight: 800; font-size: 12px; }
   .brand-logo { height: 32px; width: auto; display: block; }
@@ -225,7 +228,10 @@
       <h1>Panel de Tickets IT</h1>
       <p class="lede">Seguimiento de solicitudes recibidas de tus colaboradores.</p>
     </div>
-    <div class="conn-status" id="conn-status">Conectando…</div>
+    <div class="topbar-right">
+      <button type="button" class="logout-link" id="logout-btn">Cerrar sesión</button>
+      <div class="conn-status" id="conn-status">Conectando…</div>
+    </div>
   </div>
 </div>
 
@@ -1189,6 +1195,14 @@ function s(v) { return (v === null || v === undefined) ? '' : String(v); }
   });
 
   var alreadyUnlocked = false;
+  var logoutBtn = document.getElementById('logout-btn');
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', function () {
+      try { sessionStorage.removeItem('gfm_panel_unlocked'); } catch (e) {}
+      location.reload();
+    });
+  }
+
   try { alreadyUnlocked = sessionStorage.getItem('gfm_panel_unlocked') === '1'; } catch (e) {}
   if (alreadyUnlocked) {
     unlock();
